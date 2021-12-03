@@ -1,6 +1,6 @@
 
 pool:
-  vmImage: 'windows-latest'
+  name: $(AgentPool)
 
 variables:
 - group: lib.nuget
@@ -11,85 +11,94 @@ variables:
     value: debug
 
 jobs:
-- job: BuildAndTest
+- job: Versioning
   steps:
+  - template: gitversion.yml
+
+- job: BuildAndTest
+  dependsOn:
+    - Versioning
+  steps:
+    # Restore
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet restore'
+    inputs:
+      command: restore
+      arguments: '--configuration $(buildConfiguration)'
+      projects: '**/*.csproj'
+
     # Build
   - task: DotNetCoreCLI@2
     displayName: 'dotnet build'
     inputs:
-      command: 'build'
+      command: build
       arguments: '--configuration $(buildConfiguration)'
       projects: '**/*.csproj'
       
     # Test
-  - task: DotNetCoreCLI@2
+  - script: dotnet test src\SemanticVersion.Tests\SemanticVersion.Tests.csproj --no-restore --logger trx --collect "XPlat Code Coverage"
     displayName: 'dotnet test'
-    inputs:
-      command: 'test'
-      arguments: '--configuration $(buildConfiguration) --collect "Code coverage"'
-      projects: '**/*.Tests.csproj'
-      publishTestResults: true
-      testRunTitle: $(Build.BuildNumber)
 
-  # The second task is dotnet pack command again pointing to the csproj file
-  # The nobuild means the project will not be compiled before running pack, because its already built in above step
+    # Publish test results
+  - task: PublishTestResults@2
+    inputs:
+      failTaskOnFailedTests: true
+      testRunner: VSTest
+      testResultsFiles: '**/*.trx'
+      
+    # Publish code coverage report
+  - task: PublishCodeCoverageResults@1
+    displayName: 'Publish code coverage'
+    inputs:
+      codeCoverageTool: Cobertura
+      summaryFileLocation: '**/TestResults/*/coverage.cobertura.xml'
+      
 - job: Packaging
   dependsOn:
   - BuildAndTest
+  - Versioning
+  variables:
+    version: $[ dependencies.Versioning.outputs['GitVersion.SemanticVersion'] ]
   steps:
-    # Build
+    # Update version # in csproj
+  - template: xmlsetvalue.yml
+    parameters:
+      filename: src/SemanticVersion/SemanticVersion.csproj
+      tag: Version
+      value: '$(version)'
+    # Restore
   - task: DotNetCoreCLI@2
-    displayName: 'dotnet build'
+    displayName: 'dotnet restore'
     inputs:
-      command: 'build'
+      command: restore
       arguments: '--configuration $(buildConfiguration)'
       projects: '**/*.csproj'
-
+    # Build
+  - task: DotNetCoreCLI@2
+    displayName: dotnet build
+    inputs:
+      command: build
+      arguments: '--configuration $(buildConfiguration)'
+      projects: '**/*.csproj'
     # Package
   - task: DotNetCoreCLI@2
-    displayName: "dotnet pack"
+    displayName: dotnet pack
     inputs:
-      command: 'pack'
+      command: pack
       arguments: '--configuration $(buildConfiguration)'
-      packagesToPack: '**/*.csproj'
-      nobuild: true
-      versioningScheme: 'off'
-
+      packagesToPack: 'src/SemanticVersion/SemanticVersion.csproj'
+      nobuild: true # already built in the previous step
+      versioningScheme: off
+    # Publish Artifacts
   - task: PublishPipelineArtifact@1
-    displayName: Publish pipeline packages artifact
+    displayName: Publish pipeline artifacts
     inputs:
       targetPath: '$(Pipeline.Workspace)'
       artifactName: packages
       artifactType: pipeline   
 
-  # Push non-master packages to the private artifact feed in Azure
-  #
-  # allowPackageConflicts allows us to build the same version and not throw an error when trying to push
-  #  instead it just ignores the latest package unless the version changes
-- job: InternalPublish
-  condition: and(succeeded(), ne(variables['Build.SourceBranch'], 'refs/heads/master'))
-  dependsOn:
-  - Packaging
-  steps:
-  - task: DownloadPipelineArtifact@2
-    displayName: Download pipeline packages artifact
-    inputs:
-      artifact: packages
-      path: '$(Build.ArtifactStagingDirectory)'     
-  - task: NuGetCommand@2
-    displayName: 'push to internal/azure feed'
-    inputs:
-      command: 'push'
-      feedsToUse: 'select'
-      packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'
-      nuGetFeedType: 'internal'
-      publishVstsFeed: 'Feed'
-      versioningScheme: 'off'
-      allowPackageConflicts: true
-
-  # Publish packages from master to nuget
-- job: NugetPublish
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+  # Publish package to either the internal feed (pre-release) or nuget (release)
+- job: Publishing
   dependsOn:
   - Packaging
   variables:
@@ -101,7 +110,26 @@ jobs:
       artifact: packages
       path: '$(Build.ArtifactStagingDirectory)'     
 
+    # Builds produced on branches OTHER than MASTER are pushed to the internal feed.
+    #
+    # allowPackageConflicts true allows us to build the same version multiple times and 
+    #  not throw an error when trying to push, overwriting the previous published build
+    #  of that version
+  - task: NuGetCommand@2
+    displayName: 'push to internal/azure feed'
+    condition: and(succeeded(), ne(variables['Build.SourceBranch'], 'refs/heads/master'))
+    inputs:
+      command: push
+      feedsToUse: select
+      packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'
+      nuGetFeedType: internal
+      publishVstsFeed: Feed
+      versioningScheme: off
+      allowPackageConflicts: true
+
+    # Publish packages from MASTER to nuget
   - task: DotNetCoreCLI@2
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
     displayName: push to nuget.org (using workaround)
     inputs:
       command: custom
@@ -121,6 +149,3 @@ jobs:
 #      packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'
 #      nuGetFeedType: 'external'
 #      publishFeedCredentials: 'NugetOrgApiKey'
-
-
-

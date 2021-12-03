@@ -34,5 +34,6 @@ namespace Deltics.SemVer
             }
 
             return builder.ToString();
-        }    }
+        }
+    }
 }

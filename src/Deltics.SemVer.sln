@@ -1,8 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Deltics.SemVer", "Deltics.SemVer\Deltics.SemVer.csproj", "{20CD2323-1696-4008-B71E-D09FE3A377B4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticVersion", "SemanticVersion\SemanticVersion.csproj", "{20CD2323-1696-4008-B71E-D09FE3A377B4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Deltics.SemVer.Tests", "Deltics.SemVer.Tests\Deltics.SemVer.Tests.csproj", "{CB1D26E0-985B-4E98-871B-BD959DBF98B1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticVersion.Tests", "SemanticVersion.Tests\SemanticVersion.Tests.csproj", "{CB1D26E0-985B-4E98-871B-BD959DBF98B1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

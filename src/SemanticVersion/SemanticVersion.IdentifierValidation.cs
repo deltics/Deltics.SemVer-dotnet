@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-
 namespace Deltics.SemVer
 {
     public partial class SemanticVersion
