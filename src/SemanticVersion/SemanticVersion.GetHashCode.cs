@@ -1,5 +1,3 @@
-using System;
-
 namespace Deltics.SemVer
 {
     public partial class SemanticVersion

@@ -1,0 +1,184 @@
+# Parameters for this task:
+#
+#   - containerVersionPerBuild
+#
+#     If 'true', then on non-mainline builds, in addition to the pre-release label, the 
+#      ContainerVersion output variable will also include a build info suffix, consisting of
+#      the Short Commit Sha for the build.
+#
+#     Since container versions (in docker at least) do not support the use of '+' characters,
+#      the suffix is appended with a '-' separator:
+#
+#       Major.Minor.Patch-<prerelease.label>-<shortsha>
+#
+#     For mainline builds (master|main), this parameter has no effect since mainline build
+#      versions do not contain prerelease labels or build info.
+
+parameters:
+- name: containerVersionPerBuild
+  type: boolean
+  default: false
+
+# Output variables produced by this task:
+#
+#   - Major             - Major version number
+#   - Minor             - Minor version number
+#   - Patch             - Patch number
+#   - CommitSha         - Full sha of the commit over which the task is being run
+#   - ShortSha          - Short sha of the commit
+#   - MajorMinorPatch   - Structured numeric component of the version (Major.Minor.Patch)
+#   - PreReleaseLabel   - Any PreReleaseLabel for the version (derived from branch name)
+#   - BuildInfo         - BuildInfo for the version 
+#   - SemanticVersion   - Major.Minor.Path[-PreReleaseLabel][+Commits.ShortSha]
+#   - ContainerVersion  - SemanticVersion formatted for use as a container version (no '+').
+
+
+steps:
+  # Persist git credentials required for git fetch --tags
+- checkout: self
+  persistCredentials: true
+
+# Check for a gitversion.yml in the repo.  If not present create a default
+- powershell: |
+    if (Test-Path -Path gitversion.yml -PathType Leaf) {
+      echo "INFO: using gitversion.yml config provided by project repo"
+      exit 0
+    }
+
+    echo "INFO: gitversion.yml not provided in project repo"
+
+    $defaultConfig=@"
+    mode: mainline
+    tag-prefix: '[vV]'
+    major-version-bump-message: '\+semver:\s?(breaking|major)'
+    minor-version-bump-message: '\+semver:\s?(feature|minor)'
+    patch-version-bump-message: '\+semver:\s?(fix|patch)'
+    branches:
+      main:
+        regex: master|main
+        tag: ''
+        increment: none
+        is-mainline: true
+        is-source-branch-for: [ 'feature', 'fix', 'hotfix' ]
+        source-branches: [ 'pull-request' ]
+      feature:
+        regex: (feature|feat|ft)[/-]?
+        tag: feat.{BranchName}
+        increment: none
+      fix:
+        regex: (bug|bugfix|fix)[/-]?
+        tag: fix.{BranchName}
+        increment: none
+      hotfix:
+        regex: (hot|hotfix)[/-]?
+        tag: hot.{BranchName}
+        increment: none
+      pull-request:
+        regex: pull[/-]?
+        tag: PR
+        increment: none
+        tag-number-pattern: '[/-](?<number>\d+)[-/]'
+      other:
+        regex: ^((?!main|master|(feature|feat|ft|fix|bug|bugfix|hot|hotfix|pull[/-]?)).)*$
+        tag: useBranchName
+        increment: none
+        source-branches: [ 'main' ]
+    "@
+
+    $null = New-Item gitversion.yml -ItemType File -Value $defaultConfig
+
+    echo "INFO: created default config in gitversion.yml"
+  displayName: 'Configuration'
+
+  # Run GitVersion and set output variables
+- powershell: |
+    # Get branch name and emit environmental eyeball diagnostics
+
+    $sourceBranch = "$(Build.SourceBranch)"
+    $branchName = $sourceBranch.Remove(0, 11) # Removes the leading "refs/heads/"
+    $gitversionVersion = gitversion /version
+
+    echo ""
+    echo "GitVersion Diagnostics"
+    echo "   Build.SourceBranch : $sourceBranch"
+    echo "   Branch Name        : $branchName"
+    echo "   GitVersion         : $gitversionVersion"
+    if("${{ parameters.containerVersionPerBuild }}" -eq "true") {
+      echo "   Container Version  : per Build (incl. pre-release label)"
+    } else {
+      echo "   Container Version  : per Version (no build info)"
+    }
+
+    # Get GitVersion result
+
+    $result = gitversion /b $branchName /output json /nofetch /config gitversion.yml
+
+    # Eyeball diagnostics for GitVersion result/output
+
+    echo ""
+    echo "GitVersion Output:"
+    echo "$result"
+    echo ""
+
+    $result = "$result" | ConvertFrom-Json
+
+    # Extract fields from GitVersion
+
+    $Major = "$($result.Major)"
+    $Minor = "$($result.Minor)"
+    $Patch = "$($result.Patch)"
+    $MajorMinorPatch = "{0}.{1}.{2}" -f $($result.Major),$($result.Minor),$($result.Patch)
+    $PreReleaseLabel = $($result.PreReleaseLabel)
+    $Commits = $($result.CommitsSinceVersionSourcePadded)
+    $CommitSha = $($result.Sha)
+    $ShortSha = $($result.ShortSha)
+    
+    # Set BuildInfo, SemanticVersion and ContainerVersion according to the branch
+
+    Switch -RegEx ($branchName) {
+      # For builds on master, the container version is simply Maj.Min.Pat and the
+      #  semantic version is the same.
+      "main|master" {
+        $SemanticVersion = "$MajorMinorPatch"
+        $ContainerVersion = "$MajorMinorPatch"
+
+        # PreReleaseLabel and BuildInfo should already be empty, but let's make sure
+        $BuildInfo = ""
+        $PreReleaseLabel = ""
+        break
+      }
+      default {
+        # For non-mainline builds the SemanticVersion incorporates build information.  Whether this is
+        #  included in the ContainerVersion depends on the containerVersionPerBuild parameter setting.
+        #
+        # If it is included in the ContainerVersion, it is formatted differently and consists only of 
+        #  the ShortSha (not the no. of commits).
+        $BuildInfo = "{0}.{1}" -f $Commits,$ShortSha
+        $SemanticVersion = "{0}-{1}+{2}" -f $MajorMinorPatch,$PreReleaseLabel,$BuildInfo
+
+        if("${{ parameters.containerVersionPerBuild }}" -eq "true") {
+          $ContainerVersion = "{0}-{1}-{2}" -f $MajorMinorPatch,$PreReleaseLabel,$ShortSha
+        } else {
+          $ContainerVersion = "{0}-{1}" -f $MajorMinorPatch,$PreReleaseLabel
+        }
+        break
+      }
+    }
+
+    echo "##vso[task.setvariable variable=Major;isOutput=true]$Major"
+    echo "##vso[task.setvariable variable=Minor;isOutput=true]$Minor"
+    echo "##vso[task.setvariable variable=Patch;isOutput=true]$Patch"
+
+    echo "##vso[task.setvariable variable=CommitSha;isOutput=true]$CommitSha"
+    echo "##vso[task.setvariable variable=ShortSha;isOutput=true]$ShortSha"
+
+    echo "##vso[task.setvariable variable=MajorMinorPatch;isOutput=true]$MajorMinorPatch"
+    echo "##vso[task.setvariable variable=PreReleaseLabel;isOutput=true]$PreReleaseLabel"
+    echo "##vso[task.setvariable variable=BuildInfo;isOutput=true]$BuildInfo"
+
+    echo "##vso[task.setvariable variable=SemanticVersion;isOutput=true]$SemanticVersion"
+    echo "##vso[task.setvariable variable=ContainerVersion;isOutput=true]$ContainerVersion"
+
+    echo "##vso[build.updatebuildnumber]$SemanticVersion"
+  name: GitVersion
+  displayName: Run GitVersion

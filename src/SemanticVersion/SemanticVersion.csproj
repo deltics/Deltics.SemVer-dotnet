@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Deltics.SemVer</PackageId>
+    <RootNamespace>Deltics.SemVer</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <!-- NOTE: 'Version' is updated by the build pipeline during packaging, replacing whatever value is currently shown here -->
+    <Version>0.0.4</Version>
+    <Authors>Jolyon Direnko-Smith</Authors>
+    <Description>Lightweight, simple to use implementation of v2 semantic version numbers (see semver.org)</Description>
+    <TargetFrameworks>net5.0;netstandard2.0</TargetFrameworks>
+    <AssemblyName>Deltics.SemVer</AssemblyName>
+  </PropertyGroup>
+</Project>

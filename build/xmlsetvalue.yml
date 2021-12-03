@@ -1,0 +1,31 @@
+parameters:
+- name: filename
+  type: string
+
+- name: tag
+  type: string
+
+- name: value
+  type: string
+
+
+steps:
+- powershell: |
+    $filename = "${{ parameters.filename }}"
+    $tag = "${{ parameters.tag }}"
+    $newValue = "${{ parameters.value }}"
+
+    $xml = New-Object XML
+    $xml.Load("$filename")
+    $element = $xml.SelectSingleNode("//$tag")
+
+    $oldValue = $element.InnerText
+
+    echo "INFO: Current value for element <$tag>: '$oldValue'"
+
+    $element.InnerText = "$newValue"
+
+    echo "INFO: Updated element <$tag> with value: '$newValue'"
+
+    $xml.Save("$filename")
+  displayName: 'Update XML'
