@@ -10,12 +10,14 @@
     <Description>Lightweight, simple to use implementation of v2 semantic version numbers (see semver.org)</Description>
     <TargetFrameworks>net5.0;netstandard2.0</TargetFrameworks>
     <AssemblyName>Deltics.SemVer</AssemblyName>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/deltics/Deltics.Semver-dotnet.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="\"/>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\"/>
   </ItemGroup>
 </Project>

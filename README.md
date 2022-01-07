@@ -1,5 +1,7 @@
 # Deltics.SemVer
 
+[![Build Status](https://dev.azure.com/deltics/Congress/_apis/build/status/c#/Deltics.SemVer?branchName=master)](https://dev.azure.com/deltics/Congress/_build/latest?definitionId=112&branchName=master)
+
 An implementation of Semver 2.0 for C#
 
 If you are looking for the Delphi implementation and/or duget package, this may be found [here](https://github.com/deltics/deltics.semver).
