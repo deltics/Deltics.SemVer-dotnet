@@ -14,6 +14,8 @@ jobs:
 - job: Versioning
   steps:
   - template: gitversion.yml
+    parameters:
+      containerVersionPerBuild: true
 
 - job: BuildAndTest
   displayName: Build and Test
@@ -58,16 +60,13 @@ jobs:
 - job: Packaging
   dependsOn:
   - BuildAndTest
-  - Versioning
-  variables:
-    version: $[ dependencies.Versioning.outputs['GitVersion.SemanticVersion'] ]
   steps:
     # Update version # in csproj
   - template: xmlsetvalue.yml
     parameters:
       filename: src/SemanticVersion/SemanticVersion.csproj
       tag: Version
-      value: '$(version)'
+      value: '$(Build.BuidNumber)'
       displayName: Set Package Version
     # Restore
   - task: DotNetCoreCLI@2
@@ -101,7 +100,7 @@ jobs:
       artifactType: pipeline   
 
   # Publish package to either the internal feed (pre-release) or nuget (release)
-- job: Publishing
+- job: Publish
   dependsOn:
   - Packaging
   variables:
@@ -114,21 +113,14 @@ jobs:
       path: '$(Build.ArtifactStagingDirectory)'     
 
     # Builds produced on branches OTHER than MASTER are pushed to the internal feed.
-    #
-    # allowPackageConflicts true allows us to build the same version multiple times and 
-    #  not throw an error when trying to push, overwriting the previous published build
-    #  of that version
-  - task: NuGetCommand@2
-    displayName: 'push to internal/azure feed'
+  - task: DotNetCoreCLI@2
+    displayName: "push to internal/azure feed"
     condition: and(succeeded(), ne(variables['Build.SourceBranch'], 'refs/heads/master'))
     inputs:
       command: push
-      feedsToUse: select
       packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'
       nuGetFeedType: internal
       publishVstsFeed: Feed
-      versioningScheme: off
-      allowPackageConflicts: true
 
     # Publish packages from MASTER to nuget
   - task: DotNetCoreCLI@2

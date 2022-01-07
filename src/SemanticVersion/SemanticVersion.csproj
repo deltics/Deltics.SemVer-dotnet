@@ -2,13 +2,16 @@
 
   <PropertyGroup>
     <PackageId>Deltics.SemVer</PackageId>
+    <Title>Deltics.SemVer</Title>
     <RootNamespace>Deltics.SemVer</RootNamespace>
     <IsPackable>true</IsPackable>
     <!-- NOTE: 'Version' is updated by the build pipeline during packaging, replacing whatever value is currently shown here -->
     <Version>0.0.4</Version>
     <Authors>Jolyon Direnko-Smith</Authors>
+    <Language>en</Language>
+    <Copyright>©2020 Jolyon Direnko-Smith</Copyright>
     <Description>Lightweight, simple to use implementation of v2 semantic version numbers (see semver.org)</Description>
-    <TargetFrameworks>net5.0;netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>net5.0;net6.0;netstandard2.0</TargetFrameworks>
     <AssemblyName>Deltics.SemVer</AssemblyName>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

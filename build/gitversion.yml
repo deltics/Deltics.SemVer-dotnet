@@ -1,36 +1,19 @@
 # Parameters for this task:
 #
-#   - containerVersionPerBuild
-#
-#     If 'true', then on non-mainline builds, in addition to the pre-release label, the 
-#      ContainerVersion output variable will also include a build info suffix, consisting of
-#      the Short Commit Sha for the build.
-#
-#     Since container versions (in docker at least) do not support the use of '+' characters,
-#      the suffix is appended with a '-' separator:
-#
-#       Major.Minor.Patch-<prerelease.label>-<shortsha>
-#
-#     For mainline builds (master|main), this parameter has no effect since mainline build
-#      versions do not contain prerelease labels or build info.
-
-parameters:
-- name: containerVersionPerBuild
-  type: boolean
-  default: false
+#   - none
 
 # Output variables produced by this task:
 #
 #   - Major             - Major version number
 #   - Minor             - Minor version number
 #   - Patch             - Patch number
+#   - Commits           - Number of commits since the branch root
+#   - CommitsPadded     - Number of commits since the branch root padded with leading zeroes
 #   - CommitSha         - Full sha of the commit over which the task is being run
 #   - ShortSha          - Short sha of the commit
 #   - MajorMinorPatch   - Structured numeric component of the version (Major.Minor.Patch)
 #   - PreReleaseLabel   - Any PreReleaseLabel for the version (derived from branch name)
-#   - BuildInfo         - BuildInfo for the version 
-#   - SemanticVersion   - Major.Minor.Path[-PreReleaseLabel][+Commits.ShortSha]
-#   - ContainerVersion  - SemanticVersion formatted for use as a container version (no '+').
+#   - SemanticVersion   - Major.Minor.Patch[-PreReleaseLabel]
 
 
 steps:
@@ -129,38 +112,27 @@ steps:
     $Patch = "$($result.Patch)"
     $MajorMinorPatch = "{0}.{1}.{2}" -f $($result.Major),$($result.Minor),$($result.Patch)
     $PreReleaseLabel = $($result.PreReleaseLabel)
-    $Commits = $($result.CommitsSinceVersionSourcePadded)
+    $Commits = $($result.CommitsSinceVersionSource)
+    $CommitsPadded = $($result.CommitsSinceVersionSourcePadded)
     $CommitSha = $($result.Sha)
     $ShortSha = $($result.ShortSha)
     
-    # Set BuildInfo, SemanticVersion and ContainerVersion according to the branch
+    # Set SemanticVersion according to the branch
 
     Switch -RegEx ($branchName) {
-      # For builds on master, the container version is simply Maj.Min.Pat and the
-      #  semantic version is the same.
+      # For builds on master, the semantic version is simply Major.Minor.Patch
       "main|master" {
         $SemanticVersion = "$MajorMinorPatch"
-        $ContainerVersion = "$MajorMinorPatch"
+        $BuildNumber = "$SemanticVersion"
 
-        # PreReleaseLabel and BuildInfo should already be empty, but let's make sure
-        $BuildInfo = ""
+        # PreReleaseLabel should already be empty, but let's make sure
         $PreReleaseLabel = ""
         break
       }
+      # On other branches we append the PreReleaseLabel
       default {
-        # For non-mainline builds the SemanticVersion incorporates build information.  Whether this is
-        #  included in the ContainerVersion depends on the containerVersionPerBuild parameter setting.
-        #
-        # If it is included in the ContainerVersion, it is formatted differently and consists only of 
-        #  the ShortSha (not the no. of commits).
-        $BuildInfo = "{0}.{1}" -f $Commits,$ShortSha
-        $SemanticVersion = "{0}-{1}+{2}" -f $MajorMinorPatch,$PreReleaseLabel,$BuildInfo
-
-        if("${{ parameters.containerVersionPerBuild }}" -eq "true") {
-          $ContainerVersion = "{0}-{1}-{2}" -f $MajorMinorPatch,$PreReleaseLabel,$ShortSha
-        } else {
-          $ContainerVersion = "{0}-{1}" -f $MajorMinorPatch,$PreReleaseLabel
-        }
+        $SemanticVersion = "{0}-{1}" -f $MajorMinorPatch,$PreReleaseLabel
+        $BuildNumber = "{0}.rc.$(Rev:r)"
         break
       }
     }
@@ -169,16 +141,17 @@ steps:
     echo "##vso[task.setvariable variable=Minor;isOutput=true]$Minor"
     echo "##vso[task.setvariable variable=Patch;isOutput=true]$Patch"
 
+    echo "##vso[task.setvariable variable=Commits;isOutput=true]$Commits"
+    echo "##vso[task.setvariable variable=CommitsPadded;isOutput=true]$CommitsPadded"
+
     echo "##vso[task.setvariable variable=CommitSha;isOutput=true]$CommitSha"
     echo "##vso[task.setvariable variable=ShortSha;isOutput=true]$ShortSha"
 
     echo "##vso[task.setvariable variable=MajorMinorPatch;isOutput=true]$MajorMinorPatch"
     echo "##vso[task.setvariable variable=PreReleaseLabel;isOutput=true]$PreReleaseLabel"
-    echo "##vso[task.setvariable variable=BuildInfo;isOutput=true]$BuildInfo"
 
     echo "##vso[task.setvariable variable=SemanticVersion;isOutput=true]$SemanticVersion"
-    echo "##vso[task.setvariable variable=ContainerVersion;isOutput=true]$ContainerVersion"
 
-    echo "##vso[build.updatebuildnumber]$SemanticVersion"
+    echo "##vso[build.updatebuildnumber]$BuildNumber"
   name: GitVersion
   displayName: Run GitVersion
