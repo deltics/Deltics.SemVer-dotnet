@@ -8,6 +8,10 @@ parameters:
 - name: value
   type: string
 
+- name: displayName
+  type: string
+  default: Set XML Value
+
 
 steps:
 - powershell: |
@@ -28,4 +32,4 @@ steps:
     echo "INFO: Updated element <$tag> with value: '$newValue'"
 
     $xml.Save("$filename")
-  displayName: 'Update XML'
+  displayName: ${{ parameters.displayName }}
