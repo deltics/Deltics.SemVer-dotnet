@@ -123,7 +123,6 @@ steps:
       # For builds on master, the semantic version is simply Major.Minor.Patch
       "main|master" {
         $SemanticVersion = "$MajorMinorPatch"
-        $BuildNumber = "$SemanticVersion"
 
         # PreReleaseLabel should already be empty, but let's make sure
         $PreReleaseLabel = ""
@@ -132,7 +131,6 @@ steps:
       # On other branches we append the PreReleaseLabel
       default {
         $SemanticVersion = "{0}-{1}" -f $MajorMinorPatch,$PreReleaseLabel
-        $BuildNumber = "{0}.rc.$(Rev:r)"
         break
       }
     }
@@ -152,6 +150,5 @@ steps:
 
     echo "##vso[task.setvariable variable=SemanticVersion;isOutput=true]$SemanticVersion"
 
-    echo "##vso[build.updatebuildnumber]$BuildNumber"
   name: GitVersion
-  displayName: Run GitVersion
+  displayName: Run GitVersion  

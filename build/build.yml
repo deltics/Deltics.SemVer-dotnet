@@ -17,10 +17,28 @@ jobs:
     parameters:
       containerVersionPerBuild: true
 
+- job: BuildNumber
+  displayName: Set BuildNumber
+  dependsOn:
+  - Versioning
+  variables:
+    version: $[ dependencies.Versioning.outputs['GitVersion.SemanticVersion'] ]
+    runCounter: $[counter('$(version)', 1)]
+  steps:
+  - powershell: |
+      $BuildNumber = "{0}.{1}" -f "$(version)","$(runCounter)"
+      echo "##vso[build.updatebuildnumber]$BuildNumber"
+    condition: and(succeeded(), ne(variables['Build.SourceBranch'], 'refs/heads/master'))
+    displayName: CI
+  - powershell: |
+      echo "##vso[build.updatebuildnumber]$(version)"
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+    displayName: Mainline
+
 - job: BuildAndTest
   displayName: Build and Test
   dependsOn:
-    - Versioning
+    - BuildNumber
   steps:
     # Restore
   - task: DotNetCoreCLI@2
@@ -66,7 +84,7 @@ jobs:
     parameters:
       filename: src/SemanticVersion/SemanticVersion.csproj
       tag: Version
-      value: '$(Build.BuidNumber)'
+      value: '$(Build.BuildNumber)'
       displayName: Set Package Version
     # Restore
   - task: DotNetCoreCLI@2
