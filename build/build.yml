@@ -23,7 +23,7 @@ jobs:
   - Versioning
   variables:
     version: $[ dependencies.Versioning.outputs['GitVersion.SemanticVersion'] ]
-    runCounter: $[counter('$(version)', 1)]
+    runCounter: $[counter("$[ dependencies.Versioning.outputs['GitVersion.SemanticVersion'] ]", 1)]
   steps:
   - powershell: |
       $BuildNumber = "{0}.{1}" -f "$(version)","$(runCounter)"
